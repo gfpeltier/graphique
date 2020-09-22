@@ -2,9 +2,9 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.set :as cset]
+            [clojure.spec.alpha :as s]
             [cljfx.api :as fx])
-  (:import (javafx.scene.web WebView)
-           (javafx.event EventHandler)))
+  (:import (javafx.scene.web WebView)))
 
 
 (def test-data [{:id 0
@@ -26,22 +26,16 @@
                 {:id 7
                  :name "Burrito"}])
 
-(def base-url (.toString (.toURL (.toURI (io/file "resources/public/index.html")))))
-(def root-comp (atom nil))
+(def base-url (-> (io/file "resources/public/index.html")
+                  (.toURI)
+                  (.toURL)
+                  (.toString)))
 
 (defn web-pane [{:keys [state]}]
   {:fx/type    fx/ext-on-instance-lifecycle
    :on-created (fn [cmp]
                  (let [engine (.getEngine ^WebView cmp)
                        window (.executeScript engine "window")]
-                   (.setOnError engine
-                                (reify EventHandler
-                                  (handle [_ e]
-                                    (println e))))
-                   (.setOnAlert engine
-                                (reify EventHandler
-                                  (handle [_ e]
-                                    (println e))))
                    (.setMember window "data" (json/write-str state))))
    :desc       {:fx/type     :web-view
                 :pref-height 1000
@@ -62,25 +56,18 @@
    :scene {:fx/type :scene
            :root {:fx/type body-pane :state state}}})
 
-(defn normalize-data [data {:keys [kid kname kdependents]
-                            :or {kid :id kname :name kdependents :dependents}}]
-  (let [nnames (cond-> {}
-                 kid (assoc kid :id)
-                 kname (assoc kname :name)
-                 kdependents (assoc kdependents :dependents))]
-    {:nodes (map #(cset/rename-keys % nnames) data)
-     :links (for [n data
-                  d (get n kdependents)]
-              {:source (n kid)
-               :target d})}))
+(defn normalize-data [data {:keys [id name dependents]
+                            :or   {id :id name :name dependents :dependents}
+                            :as   keymap}]
+  {:nodes (map #(cset/rename-keys % keymap) data)
+   :links (for [n data
+                d (get n dependents)]
+            {:source (n id)
+             :target d})})
 
-;; Ok so this is pretty neat but I need a reference to the webengine
-;; object that is encapsulated by the web-view in order to communicate
-;; with the CLJS UI...
 (defn view
   ([data] (view data {}))
   ([data opts]
-   (reset! root-comp
-           (fx/on-fx-thread
-             (fx/create-component
-               (root (normalize-data data opts)))))))
+   (fx/on-fx-thread
+     (fx/create-component
+       (root (normalize-data data opts))))))
