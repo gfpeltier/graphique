@@ -30,4 +30,4 @@ remapping for any/all of the keys used. E.g.
 
 Copyright © 2020 Grant Peltier
 
-Distributed under the GNU Lesser Public License v3.0
+Distributed under the GNU Lesser General Public License v3.0
